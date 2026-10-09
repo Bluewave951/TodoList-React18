@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
-import type { Todo } from '../types/todo'
+import { useCallback, useEffect, useState } from 'react'
+import type { Priority, Todo, TodoUpdates } from '../types/todo'
+import { today } from '../utils/date'
 
-export const STORAGE_KEY = 'todos'
+export const STORAGE_KEY = 'todolist-26'
 
 function loadTodos(): Todo[] {
   try {
@@ -13,35 +14,47 @@ function loadTodos(): Todo[] {
   }
 }
 
+/** Central todo state; called once from App.tsx (single source of truth). */
 export function useTodos() {
   const [todos, setTodos] = useState<Todo[]>(loadTodos)
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(todos))
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(todos))
+    } catch {
+      /* storage unavailable */
+    }
   }, [todos])
 
-  const addTodo = (title: string) => {
+  const addTodo = useCallback((title: string, priority: Priority = 'medium', dueDate = today()) => {
     const trimmed = title.trim()
     if (!trimmed) return
     setTodos((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), title: trimmed, completed: false, createdAt: Date.now() },
+      { id: crypto.randomUUID(), title: trimmed, priority, dueDate, completed: false, createdAt: Date.now() },
     ])
-  }
+  }, [])
 
-  const updateTodo = (id: string, title: string) => {
-    const trimmed = title.trim()
-    if (!trimmed) return
-    setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, title: trimmed } : t)))
-  }
+  const updateTodo = useCallback((id: string, updates: TodoUpdates) => {
+    if (updates.title !== undefined && !updates.title.trim()) return
+    setTodos((prev) =>
+      prev.map((t) =>
+        t.id === id ? { ...t, ...updates, title: (updates.title ?? t.title).trim() } : t,
+      ),
+    )
+  }, [])
 
-  const removeTodo = (id: string) => {
+  const removeTodo = useCallback((id: string) => {
     setTodos((prev) => prev.filter((t) => t.id !== id))
-  }
+  }, [])
 
-  const toggleTodo = (id: string) => {
+  const toggleTodo = useCallback((id: string) => {
     setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)))
-  }
+  }, [])
 
-  return { todos, addTodo, updateTodo, removeTodo, toggleTodo }
+  const restoreTodo = useCallback((todo: Todo) => {
+    setTodos((prev) => (prev.some((t) => t.id === todo.id) ? prev : [...prev, todo]))
+  }, [])
+
+  return { todos, addTodo, updateTodo, removeTodo, toggleTodo, restoreTodo }
 }

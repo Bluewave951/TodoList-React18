@@ -16,7 +16,11 @@ describe('useTodos', () => {
     act(() => result.current.addTodo('a'))
     const id = result.current.todos[0].id
 
-    act(() => result.current.updateTodo(id, 'b'))
+    act(() => result.current.updateTodo(id, { title: 'b', priority: 'high' }))
+    expect(result.current.todos[0].title).toBe('b')
+    expect(result.current.todos[0].priority).toBe('high')
+
+    act(() => result.current.updateTodo(id, { title: '   ' }))
     expect(result.current.todos[0].title).toBe('b')
 
     act(() => result.current.toggleTodo(id))

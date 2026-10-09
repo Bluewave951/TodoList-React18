@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitForElementToBeRemoved } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import App from '../src/App'
@@ -15,24 +15,34 @@ describe('TodoForm', () => {
   })
 })
 
-describe('TodoItem (via App)', () => {
-  it('edits inline and deletes after confirm', async () => {
+describe('App (central state)', () => {
+  it('adds, edits, toggles, deletes and undoes via lifted callbacks', async () => {
     render(<App />)
-    await userEvent.type(screen.getByLabelText('รายการใหม่'), 'งานเดิม{Enter}')
+    await userEvent.type(screen.getByLabelText('ชื่องานใหม่'), 'งานเดิม{Enter}')
+    expect(screen.getByText('งานเดิม')).toBeInTheDocument()
 
-    await userEvent.click(screen.getByText('แก้ไข'))
-    const edit = screen.getByLabelText('แก้ไขรายการ')
+    await userEvent.click(screen.getByRole('button', { name: 'แก้ไขงาน งานเดิม' }))
+    const edit = screen.getByLabelText('แก้ไขชื่องาน')
     await userEvent.clear(edit)
     await userEvent.type(edit, 'งานใหม่{Enter}')
     expect(screen.getByText('งานใหม่')).toBeInTheDocument()
 
-    await userEvent.click(screen.getByText('ทำเสร็จแล้ว'))
-    expect(screen.getByRole('checkbox')).toBeChecked()
-    await userEvent.click(screen.getByText('ยกเลิกเสร็จ'))
-    expect(screen.getByRole('checkbox')).not.toBeChecked()
+    const checkbox = screen.getByRole('checkbox', { name: /งานใหม่/ })
+    await userEvent.click(checkbox)
+    expect(checkbox).toBeChecked()
 
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
-    await userEvent.click(screen.getByText('ลบ'))
-    expect(screen.getByText('ยังไม่มีรายการ')).toBeInTheDocument()
+    // cancel keeps the task
+    await userEvent.click(screen.getByRole('button', { name: 'ลบงาน งานใหม่' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'ยกเลิกการลบ' }))
+    await waitForElementToBeRemoved(() => screen.queryByRole('dialog'))
+    expect(screen.getByText('งานใหม่')).toBeInTheDocument()
+
+    // confirm removes it
+    await userEvent.click(screen.getByRole('button', { name: 'ลบงาน งานใหม่' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'ยืนยันลบงาน' }))
+    await waitForElementToBeRemoved(() => screen.queryByRole('dialog'))
+    expect(screen.queryByText('งานใหม่')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'เลิกทำ' }))
+    expect(screen.getByText('งานใหม่')).toBeInTheDocument()
   })
 })
